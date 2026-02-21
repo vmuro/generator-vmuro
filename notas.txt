@@ -1,0 +1,7 @@
+npm ls --depth=0
+
+npm unlink -g @eslint/eslintrc
+
+yo --generators
+
+yo vmuro 
