@@ -26,7 +26,7 @@ public class <%=_name%> extends BaseIntegrationTest {
     private QueryGateway queryGateway;
 
     @Test
-    void `<%=_testname%>`() throws Exception {
+    void <%=_testname%>() throws Exception {
 
         <%- _given %>
 

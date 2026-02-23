@@ -1,33 +1,28 @@
-## Nebulit GmbH - Eventmodeling Template
+## Nebulit GmbH - Eventmodeling Template (Java)
 
 ### Setup
 
-Slices sind im _root_ Package (wie im Generator angegeben) als Packages definiert.
+Slices are defined as packages within the _root_ package (as specified in the generator).
 
-### Todos nach der initialen Generierung
+### Next Steps after initial generation
 
-Im Code sind TODOs definiert für die Stellen die angepasst werden müssen.
-Der Generator trifft bestimmte Grundannahmen (aggregateIds sind UUIDs beispielsweise).
+TODOs are defined in the code for the places that need manual adjustments.
+The generator makes certain basic assumptions (e.g., aggregateIds are UUIDs).
 
-Wird von diesen Annahmen abgewichen kompiliert der Code ggf. nicht sofort sondern muss leicht
-angepasst werden.
+If these assumptions are deviated from, the code may not compile immediately and will need to be slightly adjusted.
 
-Ihre Code Richtlinien sind natürlich führend, daher ist es erwartungskonform dass Code
-nicht sofort kompiliert (es sollten aber wirklich nur kleine Anpassungen notwendig sein).
+Your code guidelines are sovereign, so it is expected that the code may need small adjustments to compile.
 
-### Start der Applikation
+### Starting the Application
 
-Zum Start des Services kann die Klasse _ApplicationStarter_ verwendet werden in _src/test/kotlin_.
-Warum in _test_?
+To start the service, you can use the _ApplicationStarter_ class in _src/test/java_.
+Why in _test_?
 
-Diese Klasse startet die komplette Umgebung (inkl. Postgres und ggf. Kafka über TestContainers)
+This class starts the entire environment (including Postgres and, if necessary, Kafka via TestContainers).
 
-### Package Struktur
+### Package Structure
 
-Events sind im Package "events"
-
-Aggregates liegen im Package "domain"
-
-Slices haben jeweils ein isoliertes Package <sliceName>
-
-Package "common" enthält einige Interfaces für die generelle Struktur.
+* **events**: Contains event definitions.
+* **domain**: Contains aggregates.
+* **slices**: Each slice has its own isolated package `<sliceName>`.
+* **common**: Contains interfaces for the general structure.

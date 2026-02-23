@@ -28,17 +28,29 @@ module.exports = class extends Generator {
     constructor(args, opts) {
         super(args, opts);
         this.givenAnswers = opts.answers
-        config = require(this.env.cwd + "/config.json");
+        const configPath = this.destinationPath("config.json");
+        if (this.fs.exists(configPath)) {
+            config = JSON.parse(this.fs.read(configPath));
+        } else {
+            config = {};
+        }
     }
 
 
     async prompting() {
+        const aggregateChoices = (config.aggregates || []).map((item, idx) => item.title).sort();
+        
+        if (aggregateChoices.length === 0) {
+            this.log.error('No aggregates found in config.json');
+            return;
+        }
+
         this.answers = await this.prompt([
             {
                 type: 'list',
                 name: 'aggregate',
                 message: 'Which Aggregate should be generated?',
-                choices: config?.aggregates?.map((item, idx) => item.title).sort()
+                choices: aggregateChoices
             },
             {
                 type: 'checkbox',
@@ -93,7 +105,7 @@ module.exports = class extends Generator {
     }
 
     _renderCommandHandlers(aggregate) {
-        const commands = config.slices
+        const commands = (config.slices || [])
             .filter(slice => this.answers.aggregate_slices?.includes(slice.title))
             .flatMap(it => it.commands)
             .filter(it => it.aggregateDependencies?.includes(aggregate.title));
@@ -116,7 +128,7 @@ module.exports = class extends Generator {
         public void handle(${_commandTitle(command.title)} command) {
            ${events.map(event => {
                 return `
-               AggregateLifecycle.apply(new ${_eventTitle(event.title)}(${variableAssignments(command.fields, "command", event, ",\n")}));
+               AggregateLifecycle.apply(new ${_eventTitle(event.title)}(${VariablesGenerator.generateInvocation(event.fields, "command")}));
                `;
             }).join("\n")}
         }
@@ -125,7 +137,7 @@ module.exports = class extends Generator {
         @EventSourcingHandler
         public void on(${_eventTitle(event.title)} event){
         // handle event
-            ${variableAssignments(aggregate.fields, "event", event, ",\n")}
+            ${variableAssignments(aggregate.fields, "event", event, "\n")}
         }`).join("\n")}
         `;
         });
@@ -135,7 +147,7 @@ module.exports = class extends Generator {
 
     _generateImports(aggregate, rootPackageName, contextPackage) {
 
-        var commands = config.slices
+        var commands = (config.slices || [])
             .filter(slice => this.answers.aggregate_slices?.includes(slice.title))
             .flatMap(it => it.commands)
             .filter(it => it.aggregateDependencies?.includes(aggregate.title));

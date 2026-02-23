@@ -16,11 +16,19 @@ module.exports = class extends Generator {
     constructor(args, opts) {
         super(args, opts);
         this.argument('appname', {type: String, required: false});
-        config = require(this.env.cwd + "/config.json");
+        const configPath = this.destinationPath("config.json");
+        if (this.fs.exists(configPath)) {
+            config = JSON.parse(this.fs.read(configPath));
+        } else {
+            config = {};
+        }
     }
 
     // Async Await
     async prompting() {
+        const hasSlices = config && config.slices && config.slices.length > 0;
+        const hasAggregates = config && config.aggregates && config.aggregates.length > 0;
+
         this.answers = await this.prompt([{
             type: 'input',
             name: 'appName',
@@ -36,7 +44,11 @@ module.exports = class extends Generator {
                 type: 'list',
                 name: 'generatorType',
                 message: 'What should be generated?',
-                choices: ['Skeleton', 'slices', "aggregates"]
+                choices: [
+                    { name: 'Skeleton (Use this for new projects)', value: 'Skeleton' },
+                    { name: `Slices (${hasSlices ? config.slices.length : 0} found)`, value: 'slices', disabled: !hasSlices },
+                    { name: `Aggregates (${hasAggregates ? config.aggregates.length : 0} found)`, value: 'aggregates', disabled: !hasAggregates }
+                ]
             }]);
     }
 
@@ -69,36 +81,47 @@ module.exports = class extends Generator {
     }
 
     _writeSkeleton() {
-        this.fs.copyTpl(
-            this.templatePath('root'),
-            this.destinationPath("."),
-            {
-                rootPackageName: this.answers.rootPackageName,
-                appName: this.answers.appName !== "." ? slugify(this.answers.appName) : "app",
-            }
-        )
-        this.fs.copyTpl(
-            this.templatePath('src'),
-            this.destinationPath(`./src/main/java/${this.answers.rootPackageName.split(".").join("/")}`),
-            {
-                rootPackageName: this.answers.rootPackageName
-            }
-        )
-        this.fs.copyTpl(
-            this.templatePath('test'),
-            this.destinationPath(`./src/test/java/${this.answers.rootPackageName.split(".").join("/")}`),
-            {
-                rootPackageName: this.answers.rootPackageName
-            }
-        )
+        const path = require('path');
+        const glob = require('glob');
+
+        const copyTpl = (sourceDir, destDir, data) => {
+            const templateRoot = this.templatePath(sourceDir);
+            const files = glob.sync('**/*', { cwd: templateRoot, nodir: true, dot: true });
+            
+            files.forEach(file => {
+                const destFile = file.replace(/\.tpl$/, '');
+                this.fs.copyTpl(
+                    this.templatePath(path.join(sourceDir, file)),
+                    this.destinationPath(path.join(destDir, destFile)),
+                    data
+                );
+            });
+        };
+
+        // Write Root files (pom, mvnw, etc)
+        copyTpl('root', '.', {
+            rootPackageName: this.answers.rootPackageName,
+            appName: this.answers.appName !== "." ? slugify(this.answers.appName) : "app",
+        });
+
+        // Write Java Source files
+        copyTpl('src', `./src/main/java/${this.answers.rootPackageName.split(".").join("/")}`, {
+            rootPackageName: this.answers.rootPackageName
+        });
+
+        // Write Java Test files
+        copyTpl('test', `./src/test/java/${this.answers.rootPackageName.split(".").join("/")}`, {
+            rootPackageName: this.answers.rootPackageName
+        });
+
+        // Write Gitignore
         this.fs.copyTpl(
             this.templatePath('git/gitignore'),
             this.destinationPath(`./.gitignore`),
             {
                 rootPackageName: this.answers.rootPackageName
             }
-        )
-
+        );
     }
 
     end() {

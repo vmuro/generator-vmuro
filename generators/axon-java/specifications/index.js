@@ -11,6 +11,7 @@ const {
     _readmodelTitle,
     _commandTitle,
     _aggregateTitle,
+    _sliceTitle,
     _packageName,
     _packageFolderName
 } = require("../../common/util/naming");
@@ -26,7 +27,12 @@ module.exports = class extends Generator {
     constructor(args, opts) {
         super(args, opts);
         this.givenAnswers = opts.answers
-        config = require(this.env.cwd + "/config.json");
+        const configPath = this.destinationPath("config.json");
+        if (this.fs.exists(configPath)) {
+            config = JSON.parse(this.fs.read(configPath));
+        } else {
+            config = {};
+        }
     }
 
     writeSpecifications() {
@@ -89,7 +95,7 @@ module.exports = class extends Generator {
                         // take first aggregate
                         _aggregate: _aggregateTitle((slice.aggregates || [])[0]),
                         _aggregateId: aggregateId,
-                        link: boardlLink(config.boardId, specification.id)
+                        link: buildLink(config.boardId, specification.id)
 
                     }
                 );
@@ -112,7 +118,7 @@ module.exports = class extends Generator {
                         _rootPackageName: this.givenAnswers.rootPackageName,
                         _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
                         _name: specificationName,
-                        _testname: splitByCamelCase(specificationName),
+                        _testname: slugify(specificationName, "").replaceAll("-", ""),
                         _elementImports: _elementImports,
                         _commandImports: _commandImports,
                         _queryImports: _queryImports,
@@ -123,7 +129,7 @@ module.exports = class extends Generator {
                         // take first aggregate
                         _aggregate: _aggregateTitle((slice.aggregates || [])[0]),
                         _aggregateId: aggregateId,
-                        link: boardlLink(config.boardId, specification.id)
+                        link: buildLink(config.boardId, specification.id)
 
                     }
                 );
@@ -133,7 +139,7 @@ module.exports = class extends Generator {
                 let idAttribute = idField(when)
                 let idFieldType = idType(when)
 
-                var idFieldString = `var ${idAttribute}:${idFieldType} = RandomData.newInstance<${idFieldType}> {}`
+                var idFieldString = `${idFieldType} ${idAttribute} = RandomData.newInstance(${idFieldType}.class);`
 
                 this.fs.copyTpl(
                     this.templatePath(`src/components/Specification.java.tpl`),
@@ -146,7 +152,7 @@ module.exports = class extends Generator {
                         _rootPackageName: this.givenAnswers.rootPackageName,
                         _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
                         _name: specificationName,
-                        _testname: splitByCamelCase(specificationName),
+                        _testname: slugify(specificationName, "").replaceAll("-", ""),
                         _elementImports: _elementImports,
                         _typeImports: _typeImports,
                         _given: renderGiven(given, defaults),
@@ -156,7 +162,7 @@ module.exports = class extends Generator {
                         // take first aggregate
                         _aggregate: _aggregateTitle((slice.aggregates || [])[0]),
                         _aggregateId: aggregateId,
-                        link: boardlLink(config.boardId, specification.id)
+                        link: buildLink(config.boardId, specification.id)
 
                     }
                 );
@@ -166,17 +172,17 @@ module.exports = class extends Generator {
     }
 
     _commandImports(rootPackage, contextPackage, commands) {
-        return commands.map(it => `import ${_packageName(rootPackage, contextPackage, false)}.domain.commands.${_sliceTitle(this._findSliceByCommandId(it.id)?.title)}.${_commandTitle(it.title)}`).join("\n")
+        return commands.map(it => `import ${_packageName(rootPackage, contextPackage, false)}.domain.commands.${_sliceTitle(this._findSliceByCommandId(it.id)?.title)}.${_commandTitle(it.title)};`).join("\n")
     }
 
     _queryImports(slice, rootPackageName, contextPackage, readModel) {
-        return `import ${_packageName(rootPackageName, contextPackage, false)}.${slice}.${readModel}Query
- import ${_packageName(rootPackageName, contextPackage, false)}.${slice}.${readModel}`
+        return `import ${_packageName(rootPackageName, contextPackage, false)}.${slice}.${readModel}Query;
+ import ${_packageName(rootPackageName, contextPackage, false)}.${slice}.${readModel};`
     }
 
     _renderProcessorThen(then) {
         return then?.length > 0 ? `
-          awaitUntilAssserted(() -> {
+          awaitUntilAsserted(() -> {
            ${then.map(event => `streamAssertions.assertEvent(commandId.toString(), event -> event instanceof ${_eventTitle(event.title)});
            `).join("\n")
         }
@@ -216,7 +222,7 @@ module.exports = class extends Generator {
         var readModel = config.slices.flatMap((item) => item.readmodels).find((it) => it.id === thenReadModel?.linkedId);
 
         return then.map(it => `
-        awaitUntilAssserted(() -> {
+        awaitUntilAsserted(() -> {
             java.util.concurrent.CompletableFuture<${_readmodelTitle(readModel.title)}> readModelFuture = this._generateQuery(it, commands);
             //TODO add assertions
             ${readModel?.listElement ? "Assertions.assertThat(readModelFuture.get().getData()).isNotEmpty();" : "Assertions.assertThat(readModelFuture.get()).isNotNull();"}
@@ -252,7 +258,7 @@ module.exports = class extends Generator {
                 var idFieldValue = commands.length > 0 ? idField(commands[0]) : "aggregateId";
                 return `queryGateway.query(new ${readModelTitle}Query(${idFieldValue}), ${readModelTitle}.class)`;
             } else {
-                return `queryGateway.query(new ${readModelTitle}Query(${commandIdSources.map(it => `${lowercaseFirstCharacter(_commandTitle(it.command.title))}.get${capitalizeFirstCharacter(it.name)}()`).join(", ")}), ${readModelTitle}.class)`;
+                return `queryGateway.query(new ${readModelTitle}Query(${commandIdSources.map(it => `${lowercaseFirstCharacter(_commandTitle(it.command.title))}.${it.name}()`).join(", ")}), ${readModelTitle}.class)`;
             }
         }
     }
@@ -410,12 +416,12 @@ function randomizedInvocationParamterList(variables, defaults, separator = ",\n"
 
     return variables?.map((variable) => {
             if (variable.example !== "") {
-                return `\t${variable.name} = ${renderVariable(variable.example, variable.type, variable.name, defaults)}`;
+                return `\t${renderVariable(variable.example, variable.type, variable.name, defaults)}`;
             } else if (variable.idAttribute) {
-                return `\t${assignmentPrefix ? `${assignmentPrefix}.` : ""}${variable.name} = ${variable.name}`;
+                return `\t${variable.name}`;
             } else {
                 if (defaults && Object.keys(defaults).includes(variable.name)) {
-                    return `\t${variable.name} = ${defaultValue(variable.type, variable.cardinality, variable.name, defaults)}`;
+                    return `\t${defaultValue(variable.type, variable.cardinality, variable.name, defaults)}`;
                 } else {
                     // For Java, we need a class type for newInstance
                     const fieldType = typeMapping(variable.type, variable.cardinality, variable.optional);
@@ -440,7 +446,7 @@ function randomizedInvocationParamterList(variables, defaults, separator = ",\n"
                             classLiteral = `${baseFieldType}.class`;
                             break;
                     }
-                    return `\t${variable.name} = RandomData.newInstance(${classLiteral})`;
+                    return `\tRandomData.newInstance(${classLiteral})`;
                 }
             }
         }
@@ -451,15 +457,15 @@ function assertionList(variables, assignmentValues, defaults) {
     return variables.map((variable) => {
         // if example data provided, take the example into assertion
         if (variable.example !== "") {
-            return `eventInstance.set${capitalizeFirstCharacter(variable.name)}(${renderVariable(variable.example, variable.type, variable.name, defaults)});`;
+            return `${renderVariable(variable.example, variable.type, variable.name, defaults)}`;
             // take the value from the command if available
         } else if (assignmentValues?.some(field => field.name === variable.name)) {
-            return `eventInstance.set${capitalizeFirstCharacter(variable.name)}(command.get${capitalizeFirstCharacter(variable.name)}());`;
+            return `command.${variable.name}()`;
         } else if (variable.example === "" && defaults && defaults[variable.name]) {
             // is there any default? take the default
-            return `eventInstance.set${capitalizeFirstCharacter(variable.name)}(${renderVariable(defaults[variable.name], variable.type, variable.name, defaults)});`;
+            return `${renderVariable(defaults[variable.name], variable.type, variable.name, defaults)}`;
         } else {
-            return `//eventInstance.set${capitalizeFirstCharacter(variable.name)}(...);`;
+            return `null /* TODO: manual mapping for ${variable.name} */`;
         }
-    }).filter(it => it).join("\n");
+    }).join(", ");
 }

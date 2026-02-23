@@ -4,7 +4,7 @@
  */
 
 const slugify = require("slugify");
-const { capitalizeFirstCharacter } = require("./util");
+const { capitalizeFirstCharacter, camelCaseToUnderscores } = require("./util");
 const { typeMapping } = require("./generator"); // Ensure typeMapping is imported if needed for 'variables'
 
 class VariablesGenerator {
@@ -149,8 +149,11 @@ class VariablesGenerator {
 
     static generateInvocation(fields, source) {
         return fields?.map((variable) => {
-            const getter = `get${capitalizeFirstCharacter(variable.name)}()`;
-            return source ? `${source}.${getter}` : `this.${getter}`;
+            if (source) {
+                const getter = `${variable.name}()`;
+                return `${source}.${getter}`;
+            }
+            return `${variable.name}`;
         }).filter((it) => it !== "").join(",\\n");
     }
 
@@ -168,23 +171,23 @@ class VariablesGenerator {
     }
 }
 
-const variableAssignments = (targetFields, sourceName, sourceObject, separator = ",\\n") => {
+const variableAssignments = (targetFields, sourceName, sourceObject, separator = ",\\n", targetPrefix = "this.") => {
     return targetFields?.map(targetField => {
         const sourceField = sourceObject.fields?.find(f => f.name === targetField.name || f.name === targetField.mapping);
         if (sourceField) {
-            const sourceAccessor = `${sourceName}.get${capitalizeFirstCharacter(sourceField.name)}()`;
+            const sourceAccessor = `${sourceName}.${sourceField.name}()`;
             if (targetField.cardinality?.toLowerCase() === "list") {
                 // If target is list, and source is not list or is list
                 if (sourceField.cardinality?.toLowerCase() !== "list") {
                     // Adding a single element to a list
-                    return `this.${targetField.name}.add(${sourceAccessor});`;
+                    return `${targetPrefix}${targetField.name}.add(${sourceAccessor});`;
                 } else {
                     // Assigning a list to a list
-                    return `this.${targetField.name}.addAll(${sourceAccessor});`;
+                    return `${targetPrefix}${targetField.name}.addAll(${sourceAccessor});`;
                 }
             } else {
                 // Direct assignment for non-list fields
-                return `this.set${capitalizeFirstCharacter(targetField.name)}(${sourceAccessor});`;
+                return `${targetPrefix}${targetField.name} = ${sourceAccessor};`;
             }
         }
         return `// TODO: Map field '${targetField.name}'`;
@@ -196,7 +199,7 @@ const processSourceMapping = (targetField, sourceName, source, assigmentOperator
     var name = targetField.name;
     var field = source.fields?.find((field) => field.name === name);
     if (field) {
-        const sourceAccessor = `${sourceName}.get${capitalizeFirstCharacter(field.name)}()`;
+        const sourceAccessor = `${sourceName}.${field.name}()`;
         if (targetField.cardinality?.toLowerCase() === "list") {
             if (field.cardinality?.toLowerCase() !== "list") {
                 return `this.${targetField.name}.add(${sourceAccessor});`;
@@ -204,12 +207,12 @@ const processSourceMapping = (targetField, sourceName, source, assigmentOperator
                 return `this.${targetField.name}.addAll(${sourceAccessor});`;
             }
         } else {
-            return `this.set${capitalizeFirstCharacter(targetField.name)}(${sourceAccessor});`;
+            return `this.${targetField.name} = ${sourceAccessor};`;
         }
     }
     var mapping = source.fields?.find((field) => targetField.mapping === field.name);
     if (mapping) {
-        const sourceAccessor = `${sourceName}.get${capitalizeFirstCharacter(targetField.mapping)}()`;
+        const sourceAccessor = `${sourceName}.${targetField.mapping}()`;
         if (targetField.cardinality?.toLowerCase() === "list") {
             if (mapping.cardinality?.toLowerCase() !== "list") {
                 return `this.${targetField.name}.add(${sourceAccessor});`;
@@ -217,7 +220,7 @@ const processSourceMapping = (targetField, sourceName, source, assigmentOperator
                 return `this.${targetField.name}.addAll(${sourceAccessor});`;
             }
         } else {
-            return `this.set${capitalizeFirstCharacter(targetField.name)}(${sourceAccessor});`;
+            return `this.${targetField.name} = ${sourceAccessor};`;
         }
     }
     return `// TODO: Could not map field '${targetField.name}'`;

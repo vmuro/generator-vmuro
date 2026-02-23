@@ -12,13 +12,16 @@ const {
     _processorTitle,
     _readmodelTitle,
     _sliceTitle,
+    _slicePackage,
     _aggregateTitle,
-    _restResourceTitle
+    _restResourceTitle,
+    _sliceSpecificClassTitle,
+    _packageName,
+    _packageFolderName
 } = require("./../../../generators/common/util/naming");
 const {variableAssignments, processSourceMapping, VariablesGenerator} = require("../../common/util/variables");
 const {ClassesGenerator, idType, typeMapping, typeImports} = require("../../common/util/generator");
-const {_sliceSpecificClassTitle, _packageName, _packageFolderName} = require("../../common/util/naming");
-const {camelCaseToUnderscores, idField} = require("../../common/util/util");
+const {camelCaseToUnderscores, idField, capitalizeFirstCharacter} = require("../../common/util/util");
 const {analyzeSpecs} = require("../../common/util/specs");
 const {buildLink} = require("../../common/util/config");
 
@@ -31,7 +34,12 @@ module.exports = class extends Generator {
     constructor(args, opts) {
         super(args, opts);
         this.givenAnswers = opts.answers
-        config = require(this.env.cwd + "/config.json");
+        const configPath = this.destinationPath("config.json");
+        if (this.fs.exists(configPath)) {
+            config = JSON.parse(this.fs.read(configPath));
+        } else {
+            config = {};
+        }
 
     }
 
@@ -42,8 +50,8 @@ module.exports = class extends Generator {
                 name: 'slice',
                 loop: false,
                 message: 'Choose Slices to generate?',
-                choices: (items) => config.slices.filter((slice) => !items.context || items.context?.length === 0 || items.context?.includes(slice.context)).map((item, idx) => item.title).sort(),
-                when: (answers) => !answers.allSlices
+                choices: (items) => (config.slices || []).filter((slice) => !items.context || items.context?.length === 0 || items.context?.includes(slice.context)).map((item, idx) => item.title).sort(),
+                when: (answers) => !answers.allSlices && (config.slices || []).length > 0
             },
             {
                 type: 'checkbox',
@@ -51,38 +59,38 @@ module.exports = class extends Generator {
                 message: 'Which ReadModels should read directly from the Eventstream?',
                 when: (input) => {
                     return input.slice?.length == 1
-                        && config.slices.find((slice) => slice.title === input.slice[0])?.readmodels?.length > 0
+                        && (config.slices || []).find((slice) => slice.title === input.slice[0])?.readmodels?.length > 0
                         // for now don´t use list elements for live models, as it´s uncler how to handle ids
-                        && !config.slices.find((slice) => slice.title === input.slice[0])?.readmodels[0]?.listElement
+                        && !(config.slices || []).find((slice) => slice.title === input.slice[0])?.readmodels[0]?.listElement
                 },
-                choices: (items) => config.slices.filter((slice) => !items.context || items.context?.length === 0 || items.context?.includes(slice.context)).filter((item) => item.title === items.slice[0]).flatMap((slice) => slice.readmodels).map(item => item.title)
+                choices: (items) => (config.slices || []).filter((slice) => !items.context || items.context?.length === 0 || items.context?.includes(slice.context)).filter((item) => item.title === items.slice[0]).flatMap((slice) => slice.readmodels).map(item => item.title)
             },
             {
                 type: 'checkbox',
                 name: 'processTriggers',
                 message: 'Which event triggers the Automation?',
-                when: (input) => input.slice.length === 1 && (this._findTriggerEvents(input)?.length > 0),
+                when: (input) => input.slice?.length === 1 && (this._findTriggerEvents(input)?.length > 0),
                 choices: (items) => this._findTriggerEvents(items)
             }])
 
     }
 
     _findTriggerEvents(items) {
-        var slice = config.slices.filter((slice) => !items.context || items.context?.length === 0 || items.context?.includes(slice.context)).filter((item) => item.title === items.slice[0])[0]
+        var slice = (config.slices || []).filter((slice) => !items.context || items.context?.length === 0 || items.context?.includes(slice.context)).filter((item) => item.title === items.slice[0])[0]
         if (!slice) {
             return []
         }
 
-        var processor = slice.processors[0]
+        var processor = slice.processors?.[0]
         if (!processor) {
             return []
         }
 
-        var inboundDepIds = processor.dependencies.filter((dep) => dep.type === "INBOUND" && dep.elementType === "READMODEL").map(it => it.id)
+        var inboundDepIds = (processor.dependencies || []).filter((dep) => dep.type === "INBOUND" && dep.elementType === "READMODEL").map(it => it.id)
 
-        var readModels = config.slices.flatMap((slice) => slice.readmodels).filter((readmodel) => inboundDepIds.includes(readmodel.id))
+        var readModels = (config.slices || []).flatMap((slice) => slice.readmodels || []).filter((readmodel) => inboundDepIds.includes(readmodel.id))
 
-        var events = readModels.flatMap(it => it.dependencies.filter(dep => dep.type === "INBOUND" && dep.elementType === "EVENT")).map(it => it.title)
+        var events = readModels.flatMap(it => (it.dependencies || []).filter(dep => dep.type === "INBOUND" && dep.elementType === "EVENT")).map(it => it.title)
 
         return events
     }
@@ -448,7 +456,7 @@ module.exports = class extends Generator {
                     //only provide aggregateId (so that proper imports are generated)
                     readModel.fields?.filter(item => item.name === "aggregateId")
                 ), readModel, readModel.apiEndpoint),
-                link: boardlLink(config.boardId, readModel.id),
+                link: buildLink(config.boardId, readModel.id),
             }
         )
 
@@ -572,7 +580,7 @@ public void on(${_eventTitle(it.title)} event) {
     //throws exception if not available (adjust logic)
     ${readModelTitle}Key key = new ${readModelTitle}Key(${VariablesGenerator.generateInvocation(readModelIdFields, "event")});
     ${readModelTitle}Entity entity = this.repository.findById(key).orElse(new ${_readmodelTitle(readModel.title)}Entity());
-    entity.apply(${variableAssignments(readModel.fields, "event", it, "\n")});
+    ${variableAssignments(readModel.fields, "event", it, "\n", "entity.")}
     this.repository.save(entity);
 }`
         }).join("\n");
@@ -585,8 +593,8 @@ public void on(${_eventTitle(it.title)} event) {
 @EventHandler
 public void on(${_eventTitle(it.title)} event) {
     //throws exception if not available (adjust logic)
-    ${_readmodelTitle(readModel.title)}Entity entity = this.repository.findById(event.get${capitalizeFirstCharacter(id)}()).orElse(new ${_readmodelTitle(readModel.title)}Entity());
-    entity.apply(${variableAssignments(readModel.fields, "event", it, "\n")});
+    ${_readmodelTitle(readModel.title)}Entity entity = this.repository.findById(event.${id}()).orElse(new ${_readmodelTitle(readModel.title)}Entity());
+    ${variableAssignments(readModel.fields, "event", it, "\n", "entity.")}
     this.repository.save(entity);
 }`
         }).join("\n");
@@ -616,7 +624,7 @@ public void on(${_eventTitle(it.title)} event) {
                     ), command.apiEndpoint),
                     _payload: ClassesGenerator.generateRecord(_sliceSpecificClassTitle(sliceName, "Payload"), command.fields),
                     _endpoint: this._generatePostRestCall(slice.title, command,
-                        variableAssignments(command.fields, "payload", command, ",\n"), command.apiEndpoint),
+                        VariablesGenerator.generateInvocation(command.fields, "payload"), command.apiEndpoint),
                     link: buildLink(config.boardId, command.id),
                 }
             )
@@ -769,12 +777,12 @@ public void on(${_eventTitle(it.title)} event) {
                 @EventHandler
                 public void on(${_eventTitle(event)} event) {
                      queryGateway.query(
-            new ${_readmodelTitle(readModel.title)}Query(${!readModel?.listElement ? "event.getAggregateId()" : ""}),
+            new ${_readmodelTitle(readModel.title)}Query(${!readModel?.listElement ? "event.aggregateId()" : ""}),
             ${_readmodelTitle(readModel.title)}.class
         ).thenAccept(it -> {
                 /*commandGateway.send(
                     new ${_commandTitle(command.title)}(
-                      ${variableAssignments(command.fields, "it", readModel, "\n")})
+                      ${VariablesGenerator.generateInvocation(command.fields, "it")})
                 );*/
         });
                 }` : `@EventHandler

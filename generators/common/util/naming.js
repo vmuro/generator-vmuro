@@ -29,6 +29,10 @@ function _sliceTitle(title) {
     return slugify(sanitize(title.replaceAll(" ", "").replace("slice:", ""))).toLowerCase()
 }
 
+function _slicePackage(title) {
+    return _sliceTitle(title).replaceAll("-", "")
+}
+
 function _sliceSpecificClassTitle(slice, suffix) {
     var titleElements = slice.split(" ").map(it => capitalizeFirstCharacter(_sliceTitle(sanitize(it)))).join("")
     return `${capitalizeFirstCharacter(titleElements)}${suffix}`
@@ -83,6 +87,7 @@ module.exports = {
     _aggregateTitle,
     _screenTitle,
     _sliceTitle,
+    _slicePackage,
     _sliceSpecificClassTitle,
     _packageName,
     _packageFolderName,

@@ -31,7 +31,7 @@ public class <%=_name%> {
     }
 
     @Test
-    public void `<%=_testname%>`() throws Exception {
+    public void <%=_testname%>() throws Exception {
 
       <%-_idAttribute%>
 
@@ -47,7 +47,7 @@ public class <%=_name%> {
       <%- _thenExpectations %>
 
       fixture.given(events)
-        .`when`(command)
+        .when(command)
         <%- _then %>
     }
 
