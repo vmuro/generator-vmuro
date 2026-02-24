@@ -15,7 +15,7 @@
         <java.version>21</java.version>
         <axon.version>4.9.2</axon.version>
         <spring-modulith.version>1.1.3</spring-modulith.version>
-        <flyway.version>9.22.3</flyway.version>
+        <flyway.version>12.0.2</flyway.version>
     </properties>
     <dependencies>
         <!-- Spring Boot Dependencies -->
