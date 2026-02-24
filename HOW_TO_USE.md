@@ -48,9 +48,8 @@ Before you begin, ensure you have the following installed:
 To use this generator, you need to install it globally via npm:
 
 1.  Navigate to the root directory of the `generator-vmuro` project:
-    ```bash
-    cd D:epo\generator-vmuro # Or wherever your project is located
-    ```
+    
+
 2.  Link the generator globally:
     ```bash
     npm link
