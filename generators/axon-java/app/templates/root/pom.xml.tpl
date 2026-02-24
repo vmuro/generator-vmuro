@@ -15,6 +15,7 @@
         <java.version>21</java.version>
         <axon.version>4.9.2</axon.version>
         <spring-modulith.version>1.1.3</spring-modulith.version>
+        <flyway.version>9.22.3</flyway.version>
     </properties>
     <dependencies>
         <!-- Spring Boot Dependencies -->
@@ -81,10 +82,12 @@
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
+            <version>${flyway.version}</version>
         </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
+            <version>${flyway.version}</version>
         </dependency>
 
         <!-- Test Dependencies -->
