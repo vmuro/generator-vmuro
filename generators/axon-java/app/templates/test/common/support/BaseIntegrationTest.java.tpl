@@ -1,7 +1,7 @@
 package <%= rootPackageName%>.common.support;
 
 import org.awaitility.Awaitility;
-import org.junit.jupiter.api.function.Executable;
+import org.awaitility.core.ThrowingRunnable;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -32,7 +32,7 @@ public abstract class BaseIntegrationTest {
         registry.add("spring.flyway.password", () -> "test");
     }
 
-    public static void awaitUntilAsserted(Executable executable) {
+    public static void awaitUntilAsserted(ThrowingRunnable executable) {
         Awaitility.await().pollInSameThread()
                 .atMost(Duration.ofSeconds(15))
                 .untilAsserted(executable);

@@ -30,23 +30,27 @@ public class ProjectionFixtureConfiguration<T> {
     }
 
     public void apply() {
-        DefaultUnitOfWork.startAndGet(null); // Assuming Axon 4.x
+        var uow = DefaultUnitOfWork.startAndGet(null); // Assuming Axon 4.x
         Aggregate<T> aggregate;
         try {
-            aggregate = aggregateFactory.get();
-        } catch (AggregateNotFoundException e) {
-            // Wait for 1 second and retry
             try {
-                Thread.sleep(1000);
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
+                aggregate = aggregateFactory.get();
+            } catch (AggregateNotFoundException e) {
+                // Wait for 1 second and retry
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+                aggregate = aggregateFactory.get();
             }
-            aggregate = aggregateFactory.get();
+
+            aggregate.execute(a -> given.forEach(AggregateLifecycle::apply));
+            uow.commit();
+        } catch (Exception e) {
+            uow.rollback(e);
+            throw e;
         }
-
-        aggregate.execute(a -> given.forEach(AggregateLifecycle::apply));
-
-        DefaultUnitOfWork.get().commit(); // Assuming Axon 4.x
     }
 
     public static <T> ProjectionFixtureConfiguration<T> aggregateInstance(Supplier<Aggregate<T>> factory) {

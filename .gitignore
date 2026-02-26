@@ -12,6 +12,12 @@ yarn-error.log*
 .env
 .env.*
 
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
 # Build / saída
 dist/
 build/

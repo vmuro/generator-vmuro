@@ -51,8 +51,8 @@ class AxonConfig {
     @Bean
     public CommandGateway commandGateway(
             CommandBus commandBus,
-            List<MessageDispatchInterceptor<CommandMessage<?>>> dispatchInterceptors,
-            List<MessageHandlerInterceptor<CommandMessage<?>>> handlerInterceptors
+            List<MessageDispatchInterceptor<? super CommandMessage<?>>> dispatchInterceptors,
+            List<MessageHandlerInterceptor<? super CommandMessage<?>>> handlerInterceptors
     ) {
         if (commandBus != null) {
             handlerInterceptors.forEach(commandBus::registerHandlerInterceptor);

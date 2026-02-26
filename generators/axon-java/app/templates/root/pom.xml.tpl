@@ -16,6 +16,7 @@
         <axon.version>4.9.2</axon.version>
         <spring-modulith.version>1.1.3</spring-modulith.version>
         <flyway.version>12.0.2</flyway.version>
+        <easy-random.version>5.0.0</easy-random.version>
     </properties>
     <dependencies>
         <!-- Spring Boot Dependencies -->
@@ -114,6 +115,12 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jeasy</groupId>
+            <artifactId>easy-random-core</artifactId>
+            <version>${easy-random.version}</version>
             <scope>test</scope>
         </dependency>
 
