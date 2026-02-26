@@ -12,8 +12,14 @@ import org.hibernate.annotations.Cascade;
 import org.hibernate.annotations.CascadeType;
 import org.hibernate.annotations.JdbcTypeCode;
 import java.sql.Types;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 <%= _typeImports %>
 
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 @IdClass(<%-_name%>Key.class)
 @Entity
 public class <%-_name%>Entity {

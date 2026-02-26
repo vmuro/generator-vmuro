@@ -177,23 +177,40 @@ class VariablesGenerator {
     }
 }
 
-const variableAssignments = (targetFields, sourceName, sourceObject, separator = ",\n", targetPrefix = "this.") => {
+const variableAssignments = (targetFields, sourceName, sourceObject, separator = ",\n", targetPrefix = "this.", sourceSuffix = "()") => {
     return targetFields?.map(targetField => {
         const sourceField = sourceObject.fields?.find(f => f.name === targetField.name || f.name === targetField.mapping);
         if (sourceField) {
-            const sourceAccessor = `${sourceName}.${sourceField.name}()`;
+            let sourceAccessor = `${sourceName}.${sourceField.name}${sourceSuffix}`;
+            
+            // Handle type conversions
+            const targetType = typeMapping(targetField.type, targetField.cardinality, false);
+            const sourceType = typeMapping(sourceField.type, sourceField.cardinality, false);
+
+            if (targetType.includes("UUID") && sourceType.includes("String")) {
+                sourceAccessor = `java.util.UUID.fromString(${sourceAccessor})`;
+            } else if (targetType.includes("String") && sourceType.includes("UUID")) {
+                sourceAccessor = `${sourceAccessor}.toString()`;
+            }
+
             if (targetField.cardinality?.toLowerCase() === "list") {
                 // If target is list, and source is not list or is list
+                let targetList = targetPrefix.endsWith(".") ? `${targetPrefix}${targetField.name}` : `${targetPrefix}${capitalizeFirstCharacter(targetField.name)}()`;
                 if (sourceField.cardinality?.toLowerCase() !== "list") {
                     // Adding a single element to a list
-                    return `${targetPrefix}${targetField.name}.add(${sourceAccessor});`;
+                    return `${targetList}.add(${sourceAccessor});`;
                 } else {
                     // Assigning a list to a list
-                    return `${targetPrefix}${targetField.name}.addAll(${sourceAccessor});`;
+                    return `${targetPrefix.endsWith(".") ? targetPrefix : targetPrefix + "Set"}${capitalizeFirstCharacter(targetField.name)}(${sourceAccessor});`;
                 }
             } else {
-                // Direct assignment for non-list fields
-                return `${targetPrefix}${targetField.name} = ${sourceAccessor};`;
+                // Direct assignment or setter for non-list fields
+                if (targetPrefix.endsWith(".")) {
+                    return `${targetPrefix}${targetField.name} = ${sourceAccessor};`;
+                } else {
+                    // Assume it's a setter like entity.set
+                    return `${targetPrefix}${capitalizeFirstCharacter(targetField.name)}(${sourceAccessor});`;
+                }
             }
         }
         return `// TODO: Map field '${targetField.name}'`;

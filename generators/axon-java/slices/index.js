@@ -264,20 +264,47 @@ module.exports = class extends Generator {
     }
 
     _repositoryQuery(readModel) {
-        var idField = readModel.fields?.find(it => it.idAttribute)?.name ?? "aggregateId";
+        const fields = readModel.fields;
+        const idFieldFound = fields?.some(f => f.idAttribute || f.name === "aggregateId");
+        
+        let idField;
+        if (fields && fields.length > 0) {
+            idField = fields.find(f => f.idAttribute);
+            if (!idField) {
+                idField = fields.find(f => f.name === "aggregateId");
+            }
+            if (!idField && !idFieldFound) {
+                idField = fields[0];
+            }
+        }
+        var idFieldName = idField?.name ?? "aggregateId";
+
         if (readModel.listElement ?? false) {
             return `return new ${_readmodelTitle(readModel.title)}(repository.findAll());`;
         } else {
             return `
-            if(!repository.existsById(query.${idField}())) {
+            if(!repository.existsById(query.${idFieldName}())) {
                 return null;
             }
-            return new ${_readmodelTitle(readModel.title)}(repository.findById(query.${idField}()).get());`;
+            return new ${_readmodelTitle(readModel.title)}(repository.findById(query.${idFieldName}()).get());`;
         }
     }
 
     _writeLiveReportReadModel(slice, readmodel, inboundEvents) {
-        const idAttribute = readmodel.fields.find(it => it.idAttribute)?.name
+        const fields = readmodel.fields;
+        const idFieldFound = fields?.some(f => f.idAttribute || f.name === "aggregateId");
+        
+        let idFieldObj;
+        if (fields && fields.length > 0) {
+            idFieldObj = fields.find(f => f.idAttribute);
+            if (!idFieldObj) {
+                idFieldObj = fields.find(f => f.name === "aggregateId");
+            }
+            if (!idFieldObj && !idFieldFound) {
+                idFieldObj = fields[0];
+            }
+        }
+        const idAttribute = idFieldObj?.name ?? "aggregateId";
         const idTypeVar = idType(readmodel)
         const destFolder = `./src/main/java/${_packageFolderName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}/${slice}`;
         const readModelTitle = _readmodelTitle(readmodel.title);
@@ -377,14 +404,27 @@ module.exports = class extends Generator {
     }
 
     _readModelQueryElement(readModel) {
-        var idField = readModel.fields?.find(it => it.idAttribute);
+        const fields = readModel.fields;
+        const idFieldFound = fields?.some(f => f.idAttribute || f.name === "aggregateId");
+        
+        let idField;
+        if (fields && fields.length > 0) {
+            idField = fields.find(f => f.idAttribute);
+            if (!idField) {
+                idField = fields.find(f => f.name === "aggregateId");
+            }
+            if (!idField && !idFieldFound) {
+                idField = fields[0];
+            }
+        }
+
         var idFieldName = idField?.name ?? "aggregateId";
-        var idType = idField ? typeMapping(idField?.type, idField?.cardinality, idField?.optional, idField?.mutable) : "java.util.UUID";
+        var idTypeStr = idField ? typeMapping(idField.type, idField.cardinality, false) : "java.util.UUID";
 
         if (readModel.listElement ?? false) {
             return `public record ${_readmodelTitle(readModel.title)}Query() {}`;
         } else {
-            return `public record ${_readmodelTitle(readModel.title)}Query(${idType} ${idFieldName}) {}`;
+            return `public record ${_readmodelTitle(readModel.title)}Query(${idTypeStr} ${idFieldName}) {}`;
         }
     }
 
@@ -608,13 +648,28 @@ module.exports = class extends Generator {
         var readModelTitle = _readmodelTitle(readModel.title);
         var readModelIdFields = readModel.fields.filter(it => it.idAttribute);
         return events.map(it => {
+            const keyInvocation = readModelIdFields.map(idField => {
+                const eventField = it.fields?.find(f => f.name === idField.name || f.idAttribute);
+                let val = `event.${eventField ? eventField.name : idField.name}()`;
+                
+                const targetType = typeMapping(idField.type, idField.cardinality, false);
+                const sourceType = eventField ? typeMapping(eventField.type, eventField.cardinality, false) : "String";
+                
+                if (targetType.includes("UUID") && sourceType.includes("String")) {
+                    return `java.util.UUID.fromString(${val})`;
+                } else if (targetType.includes("String") && sourceType.includes("UUID")) {
+                    return `${val}.toString()`;
+                }
+                return val;
+            }).join(", ");
+
             return `
 @EventHandler
 public void on(${_eventTitle(it.title)} event) {
     //throws exception if not available (adjust logic)
-    ${readModelTitle}Key key = new ${readModelTitle}Key(${VariablesGenerator.generateInvocation(readModelIdFields, "event")});
+    ${readModelTitle}Key key = new ${readModelTitle}Key(${keyInvocation});
     ${readModelTitle}Entity entity = this.repository.findById(key).orElse(new ${_readmodelTitle(readModel.title)}Entity());
-    ${variableAssignments(readModel.fields, "event", it, "\n", "entity.")}
+    ${variableAssignments(readModel.fields, "event", it, "\n", "entity.set", "()")}
     this.repository.save(entity);
 }`
         }).join("\n");
@@ -623,12 +678,31 @@ public void on(${_eventTitle(it.title)} event) {
     _renderEventHandlersJava(readModel, events) {
         return events.map(it => {
             const id = idField(readModel);
+            const expectedIdType = idType(readModel);
+            
+            // Try to find the same ID field in the event, or fallback to any idAttribute, aggregateId, or productId in the event.
+            let eventField = it.fields?.find(f => f.name === id)
+                || it.fields?.find(f => f.idAttribute)
+                || it.fields?.find(f => f.name === "aggregateId")
+                || it.fields?.find(f => f.name === "productId")
+                || (it.fields?.length > 0 ? it.fields[0] : null);
+
+            let eventIdField = eventField ? eventField.name : "aggregateId";
+            let eventIdType = eventField ? typeMapping(eventField.type, eventField.cardinality, false) : "java.util.UUID";
+            
+            let idValue = `event.${eventIdField}()`;
+            if (expectedIdType.includes("UUID") && eventIdType.includes("String")) {
+                idValue = `java.util.UUID.fromString(${idValue})`;
+            } else if (expectedIdType.includes("String") && eventIdType.includes("UUID")) {
+                idValue = `${idValue}.toString()`;
+            }
+
             return `
 @EventHandler
 public void on(${_eventTitle(it.title)} event) {
     //throws exception if not available (adjust logic)
-    ${_readmodelTitle(readModel.title)}Entity entity = this.repository.findById(event.${id}()).orElse(new ${_readmodelTitle(readModel.title)}Entity());
-    ${variableAssignments(readModel.fields, "event", it, "\n", "entity.")}
+    ${_readmodelTitle(readModel.title)}Entity entity = this.repository.findById(${idValue}).orElse(new ${_readmodelTitle(readModel.title)}Entity());
+    ${variableAssignments(readModel.fields, "event", it, "\n", "entity.set", "()")}
     this.repository.save(entity);
 }`
         }).join("\n");

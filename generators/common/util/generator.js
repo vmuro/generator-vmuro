@@ -71,7 +71,20 @@ class ClassesGenerator {
 }
 
 function idType(element) {
-    const idField = element.fields?.find(it => it.idAttribute);
+    const fields = element.fields;
+    const idFieldFound = fields?.some(f => f.idAttribute || f.name === "aggregateId");
+    
+    let idField;
+    if (fields && fields.length > 0) {
+        idField = fields.find(f => f.idAttribute);
+        if (!idField) {
+            idField = fields.find(f => f.name === "aggregateId");
+        }
+        if (!idField && !idFieldFound) {
+            idField = fields[0];
+        }
+    }
+    
     return idField ? typeMapping(idField.type, idField.cardinality, false) : "java.util.UUID";
 }
 
