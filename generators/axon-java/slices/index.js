@@ -269,32 +269,35 @@ module.exports = class extends Generator {
             return `return new ${_readmodelTitle(readModel.title)}(repository.findAll());`;
         } else {
             return `
-            if(!repository.existsById(query.get${capitalizeFirstCharacter(idField)}())) {
+            if(!repository.existsById(query.${idField}())) {
                 return null;
             }
-            return new ${_readmodelTitle(readModel.title)}(repository.findById(query.get${capitalizeFirstCharacter(idField)}()).get());`;
+            return new ${_readmodelTitle(readModel.title)}(repository.findById(query.${idField}()).get());`;
         }
     }
 
     _writeLiveReportReadModel(slice, readmodel, inboundEvents) {
         const idAttribute = readmodel.fields.find(it => it.idAttribute)?.name
         const idTypeVar = idType(readmodel)
+        const destFolder = `./src/main/java/${_packageFolderName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}/${slice}`;
+        const readModelTitle = _readmodelTitle(readmodel.title);
+
         if (readmodel.listElement) {
 
             this.fs.copyTpl(
                 this.templatePath(`src/components/LiveReportListReadModel.java.tpl`),
-                this.destinationPath(`./src/main/java/${_packageFolderName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}/${slice}/${_readmodelTitle(readmodel.title)}.java`),
+                this.destinationPath(`${destFolder}/${readModelTitle}.java`),
                 {
                     _slice: slice,
                     _rootPackageName: this.givenAnswers.rootPackageName,
                     _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
-                    _name: _readmodelTitle(readmodel.title),
+                    _name: readModelTitle,
                     _fields: ClassesGenerator.generateRecordFields(
                         readmodel.fields
                     ),
                     _eventsImports: this._eventsImports(inboundEvents.map(it => it.title)),
 
-                    _eventLoop: this._renderReadModelSwitchCaseJava(readmodel, inboundEvents),
+                    _eventLoop: this._renderReadModelSwitchCaseJava ? this._renderReadModelSwitchCaseJava(readmodel, inboundEvents) : "",
 
                     _typeImports: typeImports(readmodel.fields),
                     link: buildLink(config.boardId, readmodel.id),
@@ -306,19 +309,19 @@ module.exports = class extends Generator {
 
             this.fs.copyTpl(
                 this.templatePath(`src/components/LiveReportReadModel.java.tpl`),
-                this.destinationPath(`./src/main/java/${_packageFolderName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}/${slice}/${_readmodelTitle(readmodel.title)}.java`),
+                this.destinationPath(`${destFolder}/${readModelTitle}.java`),
                 {
                     _slice: slice,
                     _rootPackageName: this.givenAnswers.rootPackageName,
                     _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
-                    _name: _readmodelTitle(readmodel.title),
+                    _name: readModelTitle,
                     _fields: VariablesGenerator.generateLiveReportVariables(
                         readmodel.fields,
                         idAttribute
                     ),
                     _eventsImports: this._eventsImports(inboundEvents.map(it => it.title)),
 
-                    _eventLoop: this._renderReadModelSwitchCaseJava(readmodel, inboundEvents),
+                    _eventLoop: this._renderReadModelSwitchCaseJava ? this._renderReadModelSwitchCaseJava(readmodel, inboundEvents) : "",
 
                     _typeImports: typeImports(readmodel.fields),
                     link: buildLink(config.boardId, readmodel.id),
@@ -328,14 +331,23 @@ module.exports = class extends Generator {
             )
         }
 
+        // Write Query record
+        this.fs.write(
+            this.destinationPath(`${destFolder}/${readModelTitle}Query.java`),
+            `package ${_packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}.${slice};\n\n` +
+            `import com.example.common.Query;\n` +
+            `${typeImports(readmodel.fields)}\n\n` +
+            `public record ${readModelTitle}Query(${idTypeVar} ${idAttribute}) implements Query {}`
+        );
+
         this.fs.copyTpl(
             this.templatePath(`src/components/LiveReportQueryHandler.java.tpl`),
-            this.destinationPath(`./src/main/java/${_packageFolderName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}/${slice}/internal/${_readmodelTitle(readmodel.title)}QueryHandler.java`),
+            this.destinationPath(`${destFolder}/internal/${readModelTitle}QueryHandler.java`),
             {
                 _slice: slice,
                 _rootPackageName: this.givenAnswers.rootPackageName,
                 _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
-                _name: _readmodelTitle(readmodel.title),
+                _name: readModelTitle,
                 _typeImports: typeImports(readmodel.fields),
                 link: buildLink(config.boardId, readmodel.id),
                 idAttribute: idAttribute,
@@ -345,14 +357,14 @@ module.exports = class extends Generator {
 
         this.fs.copyTpl(
             this.templatePath(`src/components/ReadOnlyRestResource.java.tpl`),
-            this.destinationPath(`./src/main/java/${_packageFolderName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}/${slice}/internal/ReadOnly${_restResourceTitle(readmodel.title)}.java`),
+            this.destinationPath(`${destFolder}/internal/ReadOnly${_restResourceTitle(readmodel.title)}.java`),
             {
                 _slice: slice,
                 _rootPackageName: this.givenAnswers.rootPackageName,
                 _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
                 _name: slice,
-                _readModel: _readmodelTitle(readmodel.title),
-                _controller: capitalizeFirstCharacter(slice),
+                _readModel: readModelTitle,
+                _controller: `ReadOnly${_restResourceTitle(readmodel.title)}`,
                 _typeImports: typeImports(readmodel.fields),
                 _endpoint: this._generateGetRestCall(slice, VariablesGenerator.generateRestParamInvocation(
                     readmodel.fields
@@ -383,16 +395,71 @@ module.exports = class extends Generator {
          // AI-TODO:
          ${specs.join(`\n`)} */` : ""
 
+        const destFolder = `./src/main/java/${_packageFolderName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}/${sliceTitle}`;
+        const readModelTitle = _readmodelTitle(readModel.title);
+
+        // Write ReadModel record
+        this.fs.copyTpl(
+            this.templatePath(`src/components/QueryableMultiKeyReadModel.java.tpl`),
+            this.destinationPath(`${destFolder}/${readModelTitle}.java`),
+            {
+                _slice: sliceTitle,
+                _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
+                _name: readModelTitle,
+                _data: this._readModelData(readModel),
+                _typeImports: typeImports(readModel.fields),
+                link: buildLink(config.boardId, readModel.id),
+            }
+        )
+
+        // Write Key record
+        this.fs.copyTpl(
+            this.templatePath(`src/components/QueryableMultiKeyReadModelKey.java.tpl`),
+            this.destinationPath(`${destFolder}/${readModelTitle}Key.java`),
+            {
+                _slice: sliceTitle,
+                _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
+                _name: readModelTitle,
+                _annotatedKeyFields: this._keyFields(readModel, true),
+                _typeImports: typeImports(readModel.fields),
+            }
+        )
+
+        // Write Entity class
+        this.fs.copyTpl(
+            this.templatePath(`src/components/QueryableMultiKeyReadModelEntity.java.tpl`),
+            this.destinationPath(`${destFolder}/${readModelTitle}Entity.java`),
+            {
+                _slice: sliceTitle,
+                _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
+                _name: readModelTitle,
+                _entityFields: VariablesGenerator.generateEntityVariables(
+                    sliceTitle,
+                    readModel.fields,
+                    readModel?.fields.find(it => it?.idAttribute).name ?? "aggregateId"
+                ),
+                _typeImports: typeImports(readModel.fields),
+            }
+        )
+
+        // Write Query record
+        this.fs.write(
+            this.destinationPath(`${destFolder}/${readModelTitle}Query.java`),
+            `package ${_packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}.${sliceTitle};\n\n` +
+            `import java.util.UUID;\n` +
+            `${typeImports(readModel.fields)}\n\n` +
+            `public record ${readModelTitle}Query(${this._keyFields(readModel, false)}) {}`
+        );
 
         this.fs.copyTpl(
             this.templatePath(`src/components/QueryableMultiKeyReadModelProjector.java.tpl`),
-            this.destinationPath(`./src/main/java/${_packageFolderName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}/${sliceTitle}/internal/${_readmodelTitle(readModel.title)}Projector.java`),
+            this.destinationPath(`${destFolder}/internal/${readModelTitle}Projector.java`),
             {
                 _slice: sliceTitle,
                 _aiComment: aiComment,
                 _rootPackageName: this.givenAnswers.rootPackageName,
                 _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
-                _name: _readmodelTitle(readModel.title),
+                _name: readModelTitle,
                 _fields: VariablesGenerator.generateVariables(
                     readModel.fields
                 ),
@@ -400,19 +467,19 @@ module.exports = class extends Generator {
                 _eventHandlers: this._renderMultiKeyEventHandlersJava(readModel, inboundEvents),
 
                 //no UUID, as this is fixed in the Projector
-                _typeImports: typeImports(readModel.fields, "java.util.UUID"),
+                _typeImports: typeImports(readModel.fields, ["java.util.UUID"]),
                 link: buildLink(config.boardId, readModel.id),
             }
         )
 
         this.fs.copyTpl(
             this.templatePath(`src/components/QueryableMultiKeyReadModelQueryHandler.java.tpl`),
-            this.destinationPath(`./src/main/java/${_packageFolderName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}/${sliceTitle}/internal/${_readmodelTitle(readModel.title)}QueryHandler.java`),
+            this.destinationPath(`${destFolder}/internal/${readModelTitle}QueryHandler.java`),
             {
                 _slice: sliceTitle,
                 _rootPackageName: this.givenAnswers.rootPackageName,
                 _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
-                _name: _readmodelTitle(readModel.title),
+                _name: readModelTitle,
                 _query: this._repositoryQuery(readModel),
                 _typeImports: typeImports(readModel.fields),
                 _fields: VariablesGenerator.generateInvocation(readModel.fields.filter(it => it.idAttribute), "query"),
@@ -421,55 +488,15 @@ module.exports = class extends Generator {
         )
 
         this.fs.copyTpl(
-            this.templatePath(`src/components/QueryableMultiKeyReadModel.java.tpl`),
-            this.destinationPath(`./src/main/java/${_packageFolderName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}/${sliceTitle}/${_readmodelTitle(readModel.title)}.java`),
-            {
-                _slice: sliceTitle,
-                _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
-                _rootPackageName: this.givenAnswers.rootPackageName,
-                _typeImports: typeImports(readModel.fields),
-                _name: _readmodelTitle(readModel.title),
-                _data: this._readModelData(readModel),
-                _keyFields: this._keyFields(readModel, false),
-                _annotatedKeyFields: this._keyFields(readModel, true),
-                _entityFields: VariablesGenerator.generateEntityVariables(
-                    sliceTitle,
-                    readModel.fields,
-                    readModel?.fields.find(it => it?.idAttribute).name ?? "aggregateId"
-                ),
-                link: buildLink(config.boardId, readModel.id),
-            }
-        )
-
-        this.fs.copyTpl(
             this.templatePath(`src/components/ReadOnlyRestResource.java.tpl`),
-            this.destinationPath(`./src/main/java/${_packageFolderName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}/${sliceTitle}/internal/ReadOnly${_restResourceTitle(readModel.title)}.java`),
+            this.destinationPath(`${destFolder}/internal/ReadOnly${_restResourceTitle(readModel.title)}.java`),
             {
                 _slice: sliceTitle,
                 _rootPackageName: this.givenAnswers.rootPackageName,
                 _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
                 _name: sliceTitle,
-                _readModel: _readmodelTitle(readModel.title),
-                _controller: capitalizeFirstCharacter(sliceTitle),
-                _typeImports: typeImports(readModel.fields),
-                _endpoint: this._generateGetRestCall(sliceTitle, VariablesGenerator.generateRestParamInvocation(
-                    //only provide aggregateId (so that proper imports are generated)
-                    readModel.fields?.filter(item => item.name === "aggregateId")
-                ), readModel, readModel.apiEndpoint),
-                link: buildLink(config.boardId, readModel.id),
-            }
-        )
-
-        this.fs.copyTpl(
-            this.templatePath(`src/components/ReadOnlyRestResource.java.tpl`),
-            this.destinationPath(`./src/main/java/${_packageFolderName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}/${sliceTitle}/internal/ReadOnly${_restResourceTitle(readModel.title)}.java`),
-            {
-                _slice: sliceTitle,
-                _rootPackageName: this.givenAnswers.rootPackageName,
-                _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
-                _name: sliceTitle,
-                _readModel: _readmodelTitle(readModel.title),
-                _controller: capitalizeFirstCharacter(sliceTitle),
+                _readModel: readModelTitle,
+                _controller: `ReadOnly${_restResourceTitle(readModel.title)}`,
                 _typeImports: typeImports(readModel.fields),
                 _endpoint: this._generateGetRestCall(sliceTitle, VariablesGenerator.generateRestParamInvocation(
                     readModel.fields
@@ -492,16 +519,60 @@ module.exports = class extends Generator {
         // AI-TODO:
         ${specs.join(`\n`)} */` : ""
 
+        const destFolder = `./src/main/java/${_packageFolderName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}/${sliceTitle}`;
+        const readModelTitle = _readmodelTitle(readModel.title);
+
+        // Write ReadModel record
+        this.fs.copyTpl(
+            this.templatePath(`src/components/QueryableReadModel.java.tpl`),
+            this.destinationPath(`${destFolder}/${readModelTitle}.java`),
+            {
+                _slice: sliceTitle,
+                _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
+                _name: readModelTitle,
+                _data: this._readModelData(readModel),
+                _typeImports: typeImports(readModel.fields),
+                link: buildLink(config.boardId, readModel.id),
+            }
+        )
+
+        // Write Entity class
+        this.fs.copyTpl(
+            this.templatePath(`src/components/QueryableReadModelEntity.java.tpl`),
+            this.destinationPath(`${destFolder}/${readModelTitle}Entity.java`),
+            {
+                _slice: sliceTitle,
+                _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
+                _name: readModelTitle,
+                _entityFields: VariablesGenerator.generateEntityVariables(
+                    sliceTitle,
+                    readModel.fields,
+                    readModel.fields?.find(it => it.idAttribute)?.name ?? "aggregateId"
+                ),
+                _typeImports: typeImports(readModel.fields),
+                link: buildLink(config.boardId, readModel.id),
+            }
+        )
+
+        // Write Query record
+        this.fs.write(
+            this.destinationPath(`${destFolder}/${readModelTitle}Query.java`),
+            `package ${_packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}.${sliceTitle};\n\n` +
+            `import java.util.UUID;\n` +
+            `${typeImports(readModel.fields)}\n\n` +
+            this._readModelQueryElement(readModel)
+        );
+
         this.fs.copyTpl(
             this.templatePath(`src/components/QueryableReadModelProjector.java.tpl`),
-            this.destinationPath(`./src/main/java/${_packageFolderName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}/${sliceTitle}/internal/${_readmodelTitle(readModel.title)}Projector.java`),
+            this.destinationPath(`${destFolder}/internal/${readModelTitle}Projector.java`),
             {
                 _slice: sliceTitle,
                 _aiComment: aiComment,
                 _idType: idType(readModel),
                 _rootPackageName: this.givenAnswers.rootPackageName,
                 _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
-                _name: _readmodelTitle(readModel.title),
+                _name: readModelTitle,
                 _fields: VariablesGenerator.generateVariables(
                     readModel.fields
                 ),
@@ -509,44 +580,7 @@ module.exports = class extends Generator {
                 _eventHandlers: this._renderEventHandlersJava(readModel, inboundEvents),
 
                 //no UUID, as this is fixed in the Projector
-                _typeImports: typeImports(readModel.fields, "java.util.UUID"),
-                link: buildLink(config.boardId, readModel.id),
-            }
-        )
-
-        this.fs.copyTpl(
-            this.templatePath(`src/components/QueryableReadModelQueryHandler.java.tpl`),
-            this.destinationPath(`./src/main/java/${_packageFolderName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}/${sliceTitle}/internal/${_readmodelTitle(readModel.title)}QueryHandler.java`),
-            {
-                _slice: sliceTitle,
-                _rootPackageName: this.givenAnswers.rootPackageName,
-                _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
-                _name: _readmodelTitle(readModel.title),
-                //for now take first aggregate
-                _query: this._repositoryQuery(readModel),
-                _typeImports: typeImports(readModel.fields),
-                link: buildLink(config.boardId, readModel.id),
-
-            }
-        )
-
-        this.fs.copyTpl(
-            this.templatePath(`src/components/QueryableReadModel.java.tpl`),
-            this.destinationPath(`./src/main/java/${_packageFolderName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false)}/${sliceTitle}/${_readmodelTitle(readModel.title)}.java`),
-            {
-                _slice: sliceTitle,
-                _data: this._readModelData(readModel),
-                _queryElement: this._readModelQueryElement(readModel),
-                _rootPackageName: this.givenAnswers.rootPackageName,
-                _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
-                _name: _readmodelTitle(readModel.title),
-                //for now take first aggregate
-                _entityFields: VariablesGenerator.generateEntityVariables(
-                    sliceTitle,
-                    readModel.fields,
-                    readModel.fields?.find(it => it.idAttribute)?.name ?? "aggregateId"
-                ),
-                _typeImports: typeImports(readModel.fields),
+                _typeImports: typeImports(readModel.fields, ["java.util.UUID"]),
                 link: buildLink(config.boardId, readModel.id),
             }
         )
@@ -559,8 +593,8 @@ module.exports = class extends Generator {
                 _rootPackageName: this.givenAnswers.rootPackageName,
                 _packageName: _packageName(this.givenAnswers.rootPackageName, config.codeGen?.contextPackage, false),
                 _name: sliceTitle,
-                _readModel: _readmodelTitle(readModel.title),
-                _controller: capitalizeFirstCharacter(sliceTitle),
+                _readModel: readModelTitle,
+                _controller: `ReadOnly${_restResourceTitle(readModel.title)}`,
                 _typeImports: typeImports(readModel.fields),
                 _endpoint: this._generateGetRestCall(sliceTitle, VariablesGenerator.generateRestParamInvocation(
                     readModel.fields
@@ -622,7 +656,7 @@ public void on(${_eventTitle(it.title)} event) {
                     ), _commandTitle(command.title), VariablesGenerator.generateInvocation(
                         command.fields
                     ), command.apiEndpoint),
-                    _payload: ClassesGenerator.generateRecord(_sliceSpecificClassTitle(sliceName, "Payload"), command.fields),
+                    _payload: `record ${_sliceSpecificClassTitle(sliceName, "Payload")}(${ClassesGenerator.generateRecordFields(command.fields, ",\n")}) {}`,
                     _endpoint: this._generatePostRestCall(slice.title, command,
                         VariablesGenerator.generateInvocation(command.fields, "payload"), command.apiEndpoint),
                     link: buildLink(config.boardId, command.id),
@@ -657,7 +691,7 @@ public void on(${_eventTitle(it.title)} event) {
        @PostMapping(${endpoint ? `"${endpoint}/{id}"`
             : `"/${_sliceTitle(slice)}/{id}"`})
     public java.util.concurrent.CompletableFuture<Object> processCommand(
-        @PathVariable("id") ${idType(command)} ${idField(command)},
+        @PathVariable("id") ${idType(command)} id,
         @RequestBody ${_sliceSpecificClassTitle(slice, "Payload")} payload
     ) {
          return commandGateway.send(new ${commandTitle}(${variableAssignments}));
@@ -766,7 +800,7 @@ public void on(${_eventTitle(it.title)} event) {
 
     _eventsImports(triggers) {
         return triggers?.map((trigger) => {
-            return `import ${this.givenAnswers.rootPackageName}.events.${_eventTitle(trigger)}`
+            return `import ${this.givenAnswers.rootPackageName}.events.${_eventTitle(trigger)};`
         }).join("\n")
     }
 

@@ -49,7 +49,7 @@ class VariablesGenerator {
                 }
             }
             return `    private ${type} ${variable.name}${defaultValue};`;
-        }).join("\\n");
+        }).join("\n");
     }
 
     static generateLiveReportVariables(fields, identifier) {
@@ -91,13 +91,17 @@ class VariablesGenerator {
             }
             const aggregateIdentifierAnnotation = (identifier && variable.name === identifier) ? "@AggregateIdentifier " : "";
             return `    ${aggregateIdentifierAnnotation}private ${type} ${variable.name}${defaultValue};`;
-        }).join("\\n");
+        }).join("\n");
     }
 
     static generateEntityVariables(slice, fields, identifier) {
-        return fields?.map((variable) => {
+        // Ensure at least one field is marked as @Id for JPA
+        let idFieldFound = fields?.some(f => f.idAttribute || f.name === "aggregateId");
+        
+        return fields?.map((variable, index) => {
             const type = typeMapping(variable.type, variable.cardinality, variable.optional);
             let defaultValue = " = null";
+            // ... (keep existing defaultValue logic)
             if (variable.cardinality?.toLowerCase() === "list") {
                 defaultValue = " = new java.util.ArrayList<>()";
             } else if (!variable.optional) {
@@ -141,10 +145,12 @@ class VariablesGenerator {
                  )
                 private ${type} ${variable.name}${defaultValue};`;
             } else {
-                const idAnnotation = variable.idAttribute ? "@jakarta.persistence.Id " : "";
+                // Assign @Id if it's the idAttribute, or 'aggregateId' and no other @Id found, or it's the first field and no @Id found.
+                let isId = variable.idAttribute || (variable.name === "aggregateId" && !fields.some(f => f.idAttribute)) || (!idFieldFound && index === 0);
+                const idAnnotation = isId ? "@jakarta.persistence.Id " : "";
                 return `    ${idAnnotation}@jakarta.persistence.Column(name="${slugify(variable.name)}") private ${type} ${variable.name}${defaultValue};`;
             }
-        }).join("\\n");
+        }).join("\n");
     }
 
     static generateInvocation(fields, source) {
@@ -154,7 +160,7 @@ class VariablesGenerator {
                 return `${source}.${getter}`;
             }
             return `${variable.name}`;
-        }).filter((it) => it !== "").join(",\\n");
+        }).filter((it) => it !== "").join(",\n");
     }
 
     static generateRestParamInvocation(fields) {
@@ -167,11 +173,11 @@ class VariablesGenerator {
                 annotations = `@org.springframework.format.annotation.DateTimeFormat(pattern = "dd.MM.yyyy HH:mm:ss") `;
             }
             return `${annotations}@org.springframework.web.bind.annotation.RequestParam ${type} ${variable.name}`;
-        }).filter((it) => it !== "").join(",\\n");
+        }).filter((it) => it !== "").join(",\n");
     }
 }
 
-const variableAssignments = (targetFields, sourceName, sourceObject, separator = ",\\n", targetPrefix = "this.") => {
+const variableAssignments = (targetFields, sourceName, sourceObject, separator = ",\n", targetPrefix = "this.") => {
     return targetFields?.map(targetField => {
         const sourceField = sourceObject.fields?.find(f => f.name === targetField.name || f.name === targetField.mapping);
         if (sourceField) {

@@ -13,11 +13,6 @@ import org.slf4j.LoggerFactory;
 /*
 Boardlink: <%- link%>
 */
-public record <%= _name%>Query(<%-idType%> <%-idAttribute%>) implements Query {}
-
-/*
-Boardlink: <%- link%>
-*/
 public class <%= _name%> implements ReadModel {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());

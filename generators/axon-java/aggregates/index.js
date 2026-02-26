@@ -155,9 +155,9 @@ module.exports = class extends Generator {
         var events = commands.flatMap(command => command.dependencies.filter(it => it.type === "OUTBOUND")
             .filter(it => it.elementType === "EVENT"))
         var commandImports = commands?.map((command) =>
-            `import ${_packageName(rootPackageName, contextPackage, false)}.domain.commands.${_sliceTitle(command.slice)}.${_commandTitle(command.title)}`) ?? []
+            `import ${_packageName(rootPackageName, contextPackage, false)}.domain.commands.${_sliceTitle(command.slice)}.${_commandTitle(command.title)};`) ?? []
         var eventImports = events?.map((event) =>
-            `import ${_packageName(rootPackageName, null, false)}.events.${_eventTitle(event.title)}`) ?? []
+            `import ${_packageName(rootPackageName, null, false)}.events.${_eventTitle(event.title)};`) ?? []
 
         return commandImports.concat(eventImports).join("\n")
     }

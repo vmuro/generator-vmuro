@@ -7,10 +7,10 @@ const { _sliceTitle, _commandTitle, _eventTitle, _readmodelTitle } = require("./
 
 class ClassesGenerator {
     static generateRecord(name, fields) {
-        return `public record ${name}(${ClassesGenerator.generateRecordFields(fields, ",\\n")}) {}`;
+        return `public record ${name}(${ClassesGenerator.generateRecordFields(fields, ",\n")}) {}`;
     }
 
-    static generateRecordFields(fields, separator = ",\\n") {
+    static generateRecordFields(fields, separator = ",\n") {
         return fields?.map((variable) => {
             const type = typeMapping(variable.type, variable.cardinality, false);
             let annotations = '';
@@ -24,7 +24,7 @@ class ClassesGenerator {
     }
 
     // This is for generating fields with initial values for regular classes (not records)
-    static generateClassFields(fields, separator = "\\n") {
+    static generateClassFields(fields, separator = "\n") {
         return fields?.map((variable) => {
             const type = typeMapping(variable.type, variable.cardinality, false);
             let defaultValue = "";
@@ -115,7 +115,7 @@ const typeMapping = (fieldType, fieldCardinality, optional) => {
 
 const typeImports = (fields, additionalImports = []) => {
     if (!fields || fields.length === 0) {
-        return additionalImports.length > 0 ? `import ${additionalImports.join(";\\nimport ")};` : "";
+        return additionalImports.length > 0 ? `import ${additionalImports.join(";\nimport ")};` : "";
     }
     const imports = new Set(additionalImports);
     fields.forEach((field) => {
@@ -140,7 +140,7 @@ const typeImports = (fields, additionalImports = []) => {
         }
     });
 
-    return imports.size > 0 ? `import ${Array.from(imports).join(";\\nimport ")};` : "";
+    return imports.size > 0 ? `import ${Array.from(imports).join(";\nimport ")};` : "";
 };
 
 module.exports = { ClassesGenerator, typeMapping, typeImports, idType };

@@ -18,12 +18,12 @@ import java.util.concurrent.CompletableFuture;
 Boardlink: <%- link%>
 */
 @RestController
-public class <%= _controller%>Resource {
+public class <%= _controller%> {
 
-    private static final Logger logger = LoggerFactory.getLogger(<%- _controller%>Resource.class);
+    private static final Logger logger = LoggerFactory.getLogger(<%- _controller%>.class);
     private final QueryGateway queryGateway;
 
-    public <%= _controller%>Resource(QueryGateway queryGateway) {
+    public <%= _controller%>(QueryGateway queryGateway) {
         this.queryGateway = queryGateway;
     }
 

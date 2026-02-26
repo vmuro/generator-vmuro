@@ -12,7 +12,7 @@ import <%= _packageName%>.<%=_slice%>.<%= _name%>Key;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public interface <%-_name%>Repository extends JpaRepository<<%-_name%>Entity, <%-_name%>Key> {}
+interface <%-_name%>Repository extends JpaRepository<<%-_name%>Entity, <%-_name%>Key> {}
 
 <%- _aiComment %>
 /*
