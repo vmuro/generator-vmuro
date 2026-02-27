@@ -75,6 +75,10 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.modulith</groupId>
+            <artifactId>spring-modulith-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
